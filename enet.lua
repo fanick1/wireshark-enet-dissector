@@ -169,11 +169,15 @@ function p_enet.dissector(buf, pkt, root)
     i = 0
     
     -- Read the protocol header
-    subtree:add(pf_protoheader_peerid, buf(i, 2), buf(i, 2):uint())
+    peerid = buf(i, 2)
+    hasSentTime = bit.band(peerid:uint(), 0x8000)
+    peerid = bit.band(peerid:uint(), 0xFFF)
+    subtree:add(pf_protoheader_peerid, buf(i, 2), peerid)
     i = i + 2
-    subtree:add(pf_protoheader_senttime, buf(i, 2), buf(i, 2):uint())
-    i = i + 2
-    
+    if hasSentTime > 0 then
+	    subtree:add(pf_protoheader_senttime, buf(i, 2), buf(i, 2):uint())
+	    i = i + 2
+    end
     -- Read the command header
     command = buf(i, 1):uint()
     subtree:add(pf_cmdheader_command, buf(i, 1), buf(i, 1):uint())
@@ -293,7 +297,9 @@ function p_enet.dissector(buf, pkt, root)
         i = i + 4
         subtree:add(pf_sendfrag_fragoff, buf(i, 4), buf(i, 4):uint())
         i = i + 4
-        subtree:add(pf_sendfrag_data, buf(i, datalen))
+        if datalen > 0 then
+        	subtree:add(pf_sendfrag_data, buf(i, datalen))
+	end
     elseif command == 9 then
         -- ENetProtocolSendUnsequenced
         subtree:add(pf_sendunseq, buf(0))
@@ -304,7 +310,7 @@ function p_enet.dissector(buf, pkt, root)
         subtree:add(pf_sendunseq_datalen, buf(i, 2), buf(i, 2):uint())
         i = i + 2
         subtree:add(pf_sendunseq_data, buf(i, datalen))
-    elseif command == 10 then
+    elseif command == 10 then  -- 0x0a
         -- ENetProtocolBandwidthLimit
         subtree:add(pf_bwlimit, buf(0))
         
@@ -312,7 +318,7 @@ function p_enet.dissector(buf, pkt, root)
         i = i + 4
         subtree:add(pf_bwlimit_outgoingbandwidth, buf(i, 4), buf(i, 4):uint())
         i = i + 4
-    elseif command == 11 then
+    elseif command == 11 then -- 0x0b
         -- ENetProtocolThrottleConfigure
         subtree:add(pf_throttle, buf(0))
         
@@ -322,8 +328,27 @@ function p_enet.dissector(buf, pkt, root)
         i = i + 4
         subtree:add(pf_throttle_packetthrottledecel, buf(i, 4), buf(i, 4):uint())
         i = i + 4
-    elseif command == 12 then
-        -- TODO: ENetProtocolSendUnreliableFragment
+    elseif command == 12 then -- 0x0c
+        -- ENetProtocolSendUnreliableFragment
+        -- duplicated ENetProtocolSendFragment
+        subtree:add(pf_sendfrag, buf(0))
+        
+        subtree:add(pf_sendfrag_startseqnum, buf(i, 2), buf(i, 2):uint())
+        i = i + 2
+        datalen = buf(i, 2):uint()
+        subtree:add(pf_sendfrag_datalen, buf(i, 2), buf(i, 2):uint())
+        i = i + 2
+        subtree:add(pf_sendfrag_fragcount, buf(i, 4), buf(i, 4):uint())
+        i = i + 4
+        subtree:add(pf_sendfrag_fragnum, buf(i, 4), buf(i, 4):uint())
+        i = i + 4
+        subtree:add(pf_sendfrag_totallen, buf(i, 4), buf(i, 4):uint())
+        i = i + 4
+        subtree:add(pf_sendfrag_fragoff, buf(i, 4), buf(i, 4):uint())
+        i = i + 4
+        if datalen > 0 then
+        	subtree:add(pf_sendfrag_data, buf(i, datalen))
+	end
     end
 end
 
